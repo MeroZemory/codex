@@ -13,6 +13,7 @@ use codex_app_server_protocol::NewConversationResponse;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::SendUserMessageParams;
 use codex_app_server_protocol::SendUserMessageResponse;
+use codex_protocol::ConversationId;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use tempfile::TempDir;
@@ -42,9 +43,12 @@ async fn test_conversation_create_and_send_message_ok() {
         .expect("init failed");
 
     // Create a conversation via the new JSON-RPC API.
+    let requested_id = ConversationId::from_string("67e55044-10b1-426f-9247-bb680e5fe0c8")
+        .expect("parse conversation id");
     let new_conv_id = mcp
         .send_new_conversation_request(NewConversationParams {
             model: Some("o3".to_string()),
+            conversation_id: Some(requested_id),
             ..Default::default()
         })
         .await
@@ -64,6 +68,7 @@ async fn test_conversation_create_and_send_message_ok() {
     } = to_response::<NewConversationResponse>(new_conv_resp)
         .expect("deserialize newConversation response");
     assert_eq!(model, "o3");
+    assert_eq!(conversation_id, requested_id);
 
     // Add a listener so we receive notifications for this conversation (not strictly required for this test).
     let add_listener_id = mcp

@@ -653,6 +653,7 @@ impl CodexMessageProcessor {
     }
 
     async fn process_new_conversation(&self, request_id: RequestId, params: NewConversationParams) {
+        let requested_conversation_id = params.conversation_id.clone();
         let config =
             match derive_config_from_params(params, self.codex_linux_sandbox_exe.clone()).await {
                 Ok(config) => config,
@@ -669,7 +670,7 @@ impl CodexMessageProcessor {
 
         match self
             .conversation_manager
-            .new_conversation(config, None)
+            .new_conversation(config, requested_conversation_id)
             .await
         {
             Ok(conversation_id) => {
@@ -1341,6 +1342,7 @@ async fn derive_config_from_params(
         base_instructions,
         include_plan_tool,
         include_apply_patch_tool,
+        conversation_id: _,
     } = params;
     let overrides = ConfigOverrides {
         model,
