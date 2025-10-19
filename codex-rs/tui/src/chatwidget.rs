@@ -225,6 +225,7 @@ pub(crate) struct ChatWidgetInit {
     pub(crate) enhanced_keys_supported: bool,
     pub(crate) auth_manager: Arc<AuthManager>,
     pub(crate) feedback: codex_feedback::CodexFeedback,
+    pub(crate) conversation_id_override: Option<ConversationId>,
 }
 
 pub(crate) struct ChatWidget {
@@ -921,10 +922,16 @@ impl ChatWidget {
             enhanced_keys_supported,
             auth_manager,
             feedback,
+            conversation_id_override,
         } = common;
         let mut rng = rand::rng();
         let placeholder = EXAMPLE_PROMPTS[rng.random_range(0..EXAMPLE_PROMPTS.len())].to_string();
-        let codex_op_tx = spawn_agent(config.clone(), app_event_tx.clone(), conversation_manager);
+        let codex_op_tx = spawn_agent(
+            config.clone(),
+            app_event_tx.clone(),
+            conversation_manager,
+            conversation_id_override,
+        );
 
         Self {
             app_event_tx: app_event_tx.clone(),
@@ -986,6 +993,7 @@ impl ChatWidget {
             enhanced_keys_supported,
             auth_manager,
             feedback,
+            conversation_id_override: _,
         } = common;
         let mut rng = rand::rng();
         let placeholder = EXAMPLE_PROMPTS[rng.random_range(0..EXAMPLE_PROMPTS.len())].to_string();

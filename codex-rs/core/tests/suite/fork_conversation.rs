@@ -63,7 +63,7 @@ async fn fork_conversation_twice_drops_to_first_message() {
         conversation: codex,
         ..
     } = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create conversation");
 

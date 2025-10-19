@@ -16,6 +16,7 @@ use codex_core::config::ConfigOverrides;
 use codex_core::find_conversation_path_by_id_str;
 use codex_core::protocol::AskForApproval;
 use codex_ollama::DEFAULT_OSS_MODEL;
+use codex_protocol::ConversationId;
 use codex_protocol::config_types::SandboxMode;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use std::fs::OpenOptions;
@@ -431,7 +432,23 @@ async fn run_ratatui_app(
         initial_config
     };
 
-    // Determine resume behavior: explicit id, then resume last, then picker.
+    let workspace_id_input = cli.workspace_id.clone();
+    let mut workspace_conversation_id = if let Some(id_str) = workspace_id_input {
+        match ConversationId::from_string(&id_str) {
+            Ok(id) => Some(id),
+            Err(err) => {
+                #[allow(clippy::print_stderr)]
+                {
+                    eprintln!("Invalid --workspace-id value '{id_str}': {err}");
+                }
+                std::process::exit(1);
+            }
+        }
+    } else {
+        None
+    };
+
+    // Determine resume behavior: explicit id, then workspace id, then resume last, then picker.
     let resume_selection = if let Some(id_str) = cli.resume_session_id.as_deref() {
         match find_conversation_path_by_id_str(&config.codex_home, id_str).await? {
             Some(path) => resume_picker::ResumeSelection::Resume(path),
@@ -439,6 +456,16 @@ async fn run_ratatui_app(
                 error!("Error finding conversation path: {id_str}");
                 resume_picker::ResumeSelection::StartFresh
             }
+        }
+    } else if let Some(workspace_id) = workspace_conversation_id.as_ref() {
+        let id_str = workspace_id.to_string();
+        match find_conversation_path_by_id_str(&config.codex_home, &id_str).await? {
+            Some(path) => {
+                // Existing conversation found; treat as resume and clear override.
+                workspace_conversation_id = None;
+                resume_picker::ResumeSelection::Resume(path)
+            }
+            None => resume_picker::ResumeSelection::StartFresh,
         }
     } else if cli.resume_last {
         match RolloutRecorder::list_conversations(
@@ -483,6 +510,7 @@ async fn run_ratatui_app(
         prompt,
         images,
         resume_selection,
+        workspace_conversation_id,
         feedback,
     )
     .await;

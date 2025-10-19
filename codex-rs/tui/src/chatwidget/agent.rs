@@ -5,6 +5,7 @@ use codex_core::ConversationManager;
 use codex_core::NewConversation;
 use codex_core::config::Config;
 use codex_core::protocol::Op;
+use codex_protocol::ConversationId;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -17,6 +18,7 @@ pub(crate) fn spawn_agent(
     config: Config,
     app_event_tx: AppEventSender,
     server: Arc<ConversationManager>,
+    conversation_id_override: Option<ConversationId>,
 ) -> UnboundedSender<Op> {
     let (codex_op_tx, mut codex_op_rx) = unbounded_channel::<Op>();
 
@@ -26,7 +28,10 @@ pub(crate) fn spawn_agent(
             conversation_id: _,
             conversation,
             session_configured,
-        } = match server.new_conversation(config).await {
+        } = match server
+            .new_conversation(config, conversation_id_override)
+            .await
+        {
             Ok(v) => v,
             Err(e) => {
                 // TODO: surface this error to the user.

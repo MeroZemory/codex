@@ -25,7 +25,7 @@ async fn override_turn_context_does_not_persist_when_config_exists() {
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create conversation")
         .conversation;
@@ -65,7 +65,7 @@ async fn override_turn_context_does_not_create_config_file() {
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create conversation")
         .conversation;

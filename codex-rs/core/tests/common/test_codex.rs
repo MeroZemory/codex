@@ -57,7 +57,7 @@ impl TestCodexBuilder {
             conversation,
             session_configured,
             ..
-        } = conversation_manager.new_conversation(config).await?;
+        } = conversation_manager.new_conversation(config, None).await?;
 
         Ok(TestCodex {
             home,

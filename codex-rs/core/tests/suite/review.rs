@@ -644,7 +644,7 @@ where
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create conversation")
         .conversation

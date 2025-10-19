@@ -57,8 +57,12 @@ impl ConversationManager {
         )
     }
 
-    pub async fn new_conversation(&self, config: Config) -> CodexResult<NewConversation> {
-        self.spawn_conversation(config, self.auth_manager.clone())
+    pub async fn new_conversation(
+        &self,
+        config: Config,
+        conversation_id_override: Option<ConversationId>,
+    ) -> CodexResult<NewConversation> {
+        self.spawn_conversation(config, self.auth_manager.clone(), conversation_id_override)
             .await
     }
 
@@ -66,6 +70,7 @@ impl ConversationManager {
         &self,
         config: Config,
         auth_manager: Arc<AuthManager>,
+        conversation_id_override: Option<ConversationId>,
     ) -> CodexResult<NewConversation> {
         let CodexSpawnOk {
             codex,
@@ -75,6 +80,7 @@ impl ConversationManager {
             auth_manager,
             InitialHistory::New,
             self.session_source,
+            conversation_id_override,
         )
         .await?;
         self.finalize_spawn(codex, conversation_id).await
@@ -133,7 +139,14 @@ impl ConversationManager {
         let CodexSpawnOk {
             codex,
             conversation_id,
-        } = Codex::spawn(config, auth_manager, initial_history, self.session_source).await?;
+        } = Codex::spawn(
+            config,
+            auth_manager,
+            initial_history,
+            self.session_source,
+            None,
+        )
+        .await?;
         self.finalize_spawn(codex, conversation_id).await
     }
 
@@ -167,7 +180,7 @@ impl ConversationManager {
         let CodexSpawnOk {
             codex,
             conversation_id,
-        } = Codex::spawn(config, auth_manager, history, self.session_source).await?;
+        } = Codex::spawn(config, auth_manager, history, self.session_source, None).await?;
 
         self.finalize_spawn(codex, conversation_id).await
     }

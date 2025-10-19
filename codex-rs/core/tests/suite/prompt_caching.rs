@@ -108,7 +108,7 @@ async fn codex_mini_latest_tools() {
     config.model_family = find_family_for_model("codex-mini-latest").unwrap();
 
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation")
         .conversation;
@@ -192,7 +192,7 @@ async fn prompt_tools_are_consistent_across_requests() {
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     let base_instructions = config.model_family.base_instructions.clone();
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation")
         .conversation;
@@ -312,7 +312,7 @@ async fn prefixes_context_and_instructions_once_and_consistently_across_requests
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation")
         .conversation;
@@ -431,7 +431,7 @@ async fn overrides_turn_context_but_keeps_cached_prefix_and_key_constant() {
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation")
         .conversation;
@@ -559,7 +559,7 @@ async fn per_turn_overrides_keep_cached_prefix_and_key_constant() {
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation")
         .conversation;
@@ -689,7 +689,7 @@ async fn send_user_turn_with_no_changes_does_not_send_environment_context() {
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation")
         .conversation;
@@ -803,7 +803,7 @@ async fn send_user_turn_with_changes_sends_environment_context() {
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     let codex = conversation_manager
-        .new_conversation(config.clone())
+        .new_conversation(config.clone(), None)
         .await
         .expect("create new conversation")
         .conversation;

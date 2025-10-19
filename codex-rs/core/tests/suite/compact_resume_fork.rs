@@ -767,7 +767,7 @@ async fn start_test_conversation(
 
     let manager = ConversationManager::with_auth(CodexAuth::from_api_key("dummy"));
     let NewConversation { conversation, .. } = manager
-        .new_conversation(config.clone())
+        .new_conversation(config.clone(), None)
         .await
         .expect("create conversation");
 

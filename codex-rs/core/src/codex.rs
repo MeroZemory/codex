@@ -159,6 +159,7 @@ impl Codex {
         auth_manager: Arc<AuthManager>,
         conversation_history: InitialHistory,
         session_source: SessionSource,
+        conversation_id_override: Option<ConversationId>,
     ) -> CodexResult<CodexSpawnOk> {
         let (tx_sub, rx_sub) = async_channel::bounded(SUBMISSION_CHANNEL_CAPACITY);
         let (tx_event, rx_event) = async_channel::unbounded();
@@ -188,6 +189,7 @@ impl Codex {
             tx_event.clone(),
             conversation_history,
             session_source,
+            conversation_id_override,
         )
         .await
         .map_err(|e| {
@@ -323,6 +325,7 @@ impl Session {
         tx_event: Sender<Event>,
         initial_history: InitialHistory,
         session_source: SessionSource,
+        conversation_id_override: Option<ConversationId>,
     ) -> anyhow::Result<(Arc<Self>, TurnContext)> {
         let ConfigureSession {
             provider,
@@ -343,7 +346,8 @@ impl Session {
 
         let (conversation_id, rollout_params) = match &initial_history {
             InitialHistory::New | InitialHistory::Forked(_) => {
-                let conversation_id = ConversationId::default();
+                let conversation_id =
+                    conversation_id_override.unwrap_or_else(ConversationId::default);
                 (
                     conversation_id,
                     RolloutRecorderParams::new(

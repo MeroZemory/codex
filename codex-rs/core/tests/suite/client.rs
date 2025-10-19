@@ -329,7 +329,7 @@ async fn includes_conversation_id_and_model_headers_in_request() {
         conversation_id,
         session_configured: _,
     } = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation");
 
@@ -383,7 +383,7 @@ async fn includes_base_instructions_override_in_request() {
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation")
         .conversation;
@@ -444,7 +444,7 @@ async fn chatgpt_auth_sends_correct_request() {
         conversation_id,
         session_configured: _,
     } = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation");
 
@@ -534,7 +534,7 @@ async fn prefers_apikey_when_config_prefers_apikey_even_with_chatgpt_tokens() {
         conversation: codex,
         ..
     } = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation");
 
@@ -572,7 +572,7 @@ async fn includes_user_instructions_message_in_request() {
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation")
         .conversation;
@@ -788,7 +788,7 @@ async fn token_count_includes_rate_limits_snapshot() {
 
     let conversation_manager = ConversationManager::with_auth(CodexAuth::from_api_key("test"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create conversation")
         .conversation;
@@ -1134,7 +1134,7 @@ async fn azure_overrides_assign_properties_used_for_responses_url() {
 
     let conversation_manager = ConversationManager::with_auth(create_dummy_codex_auth());
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation")
         .conversation;
@@ -1211,7 +1211,7 @@ async fn env_var_overrides_loaded_auth() {
 
     let conversation_manager = ConversationManager::with_auth(create_dummy_codex_auth());
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation")
         .conversation;
@@ -1289,7 +1289,7 @@ async fn history_dedupes_streamed_and_final_messages_across_turns() {
         conversation: codex,
         ..
     } = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation");
 

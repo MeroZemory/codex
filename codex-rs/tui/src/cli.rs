@@ -14,6 +14,11 @@ pub struct Cli {
     #[arg(long = "image", short = 'i', value_name = "FILE", value_delimiter = ',', num_args = 1..)]
     pub images: Vec<PathBuf>,
 
+    /// Optional UUID to assign to the new workspace/session.
+    /// If a session with this ID already exists, Codex will resume it.
+    #[arg(long = "workspace-id", value_name = "UUID")]
+    pub workspace_id: Option<String>,
+
     // Internal controls set by the top-level `codex resume` subcommand.
     // These are not exposed as user flags on the base `codex` command.
     #[clap(skip)]

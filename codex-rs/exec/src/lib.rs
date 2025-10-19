@@ -262,12 +262,12 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                 .await?
         } else {
             conversation_manager
-                .new_conversation(config.clone())
+                .new_conversation(config.clone(), None)
                 .await?
         }
     } else {
         conversation_manager
-            .new_conversation(config.clone())
+            .new_conversation(config.clone(), None)
             .await?
     };
     // Print the effective configuration and prompt so users can see what Codex

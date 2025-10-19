@@ -67,7 +67,7 @@ async fn collect_tool_identifiers_for_model(model: &str) -> Vec<String> {
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .expect("create new conversation")
         .conversation;

@@ -519,6 +519,7 @@ fn finalize_resume_interactive(
     interactive.resume_picker = resume_session_id.is_none() && !last;
     interactive.resume_last = last;
     interactive.resume_session_id = resume_session_id;
+    interactive.workspace_id = None;
 
     // Merge resume-scoped flags and overrides with highest precedence.
     merge_resume_cli_flags(&mut interactive, resume_cli);

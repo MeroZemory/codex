@@ -100,7 +100,10 @@ async fn summarize_context_three_requests_and_instructions() {
         conversation: codex,
         session_configured,
         ..
-    } = conversation_manager.new_conversation(config).await.unwrap();
+    } = conversation_manager
+        .new_conversation(config, None)
+        .await
+        .unwrap();
     let rollout_path = session_configured.rollout_path;
 
     // 1) Normal user input – should hit server once.
@@ -315,7 +318,7 @@ async fn auto_compact_runs_after_token_limit_hit() {
     config.model_auto_compact_token_limit = Some(200_000);
     let conversation_manager = ConversationManager::with_auth(CodexAuth::from_api_key("dummy"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .unwrap()
         .conversation;
@@ -462,7 +465,10 @@ async fn auto_compact_persists_rollout_entries() {
         conversation: codex,
         session_configured,
         ..
-    } = conversation_manager.new_conversation(config).await.unwrap();
+    } = conversation_manager
+        .new_conversation(config, None)
+        .await
+        .unwrap();
 
     codex
         .submit(Op::UserInput {
@@ -571,7 +577,7 @@ async fn auto_compact_stops_after_failed_attempt() {
     config.model_auto_compact_token_limit = Some(200);
     let conversation_manager = ConversationManager::with_auth(CodexAuth::from_api_key("dummy"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .unwrap()
         .conversation;
@@ -665,7 +671,7 @@ async fn manual_compact_retries_after_context_window_error() {
     config.model_provider = model_provider;
     config.model_auto_compact_token_limit = Some(200_000);
     let codex = ConversationManager::with_auth(CodexAuth::from_api_key("dummy"))
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .unwrap()
         .conversation;
@@ -793,7 +799,7 @@ async fn auto_compact_allows_multiple_attempts_when_interleaved_with_other_turn_
     config.model_auto_compact_token_limit = Some(200);
     let conversation_manager = ConversationManager::with_auth(CodexAuth::from_api_key("dummy"));
     let codex = conversation_manager
-        .new_conversation(config)
+        .new_conversation(config, None)
         .await
         .unwrap()
         .conversation;

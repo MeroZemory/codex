@@ -89,6 +89,7 @@ impl App {
         initial_prompt: Option<String>,
         initial_images: Vec<PathBuf>,
         resume_selection: ResumeSelection,
+        mut workspace_id_override: Option<ConversationId>,
         feedback: codex_feedback::CodexFeedback,
     ) -> Result<AppExitInfo> {
         use tokio_stream::StreamExt;
@@ -104,6 +105,7 @@ impl App {
 
         let chat_widget = match resume_selection {
             ResumeSelection::StartFresh | ResumeSelection::Exit => {
+                let conversation_id_override = workspace_id_override.take();
                 let init = crate::chatwidget::ChatWidgetInit {
                     config: config.clone(),
                     frame_requester: tui.frame_requester(),
@@ -113,6 +115,7 @@ impl App {
                     enhanced_keys_supported,
                     auth_manager: auth_manager.clone(),
                     feedback: feedback.clone(),
+                    conversation_id_override,
                 };
                 ChatWidget::new(init, conversation_manager.clone())
             }
@@ -136,6 +139,7 @@ impl App {
                     enhanced_keys_supported,
                     auth_manager: auth_manager.clone(),
                     feedback: feedback.clone(),
+                    conversation_id_override: None,
                 };
                 ChatWidget::new_from_existing(
                     init,
@@ -242,6 +246,7 @@ impl App {
                     enhanced_keys_supported: self.enhanced_keys_supported,
                     auth_manager: self.auth_manager.clone(),
                     feedback: self.feedback.clone(),
+                    conversation_id_override: None,
                 };
                 self.chat_widget = ChatWidget::new(init, self.server.clone());
                 tui.frame_requester().schedule_frame();
