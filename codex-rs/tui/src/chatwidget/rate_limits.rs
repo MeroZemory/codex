@@ -249,7 +249,11 @@ impl ChatWidget {
                     RateLimitSwitchPromptState::Idle => {}
                 }
             }
-            let should_warn_about_rate_limit_usage = is_codex_limit && !has_workspace_credits;
+            let rate_limits_apply_to_active_provider =
+                matches!(source, RateLimitSnapshotSource::RollingUpdate)
+                    || self.config.model_provider.requires_openai_auth;
+            let should_warn_about_rate_limit_usage =
+                rate_limits_apply_to_active_provider && is_codex_limit && !has_workspace_credits;
             let warnings = if should_warn_about_rate_limit_usage {
                 self.rate_limit_warnings.take_warnings(
                     snapshot
@@ -273,7 +277,8 @@ impl ChatWidget {
                 vec![]
             };
 
-            let high_usage = is_codex_limit
+            let high_usage = self.config.model_provider.requires_openai_auth
+                && is_codex_limit
                 && (snapshot
                     .secondary
                     .as_ref()

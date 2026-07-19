@@ -1024,6 +1024,40 @@ async fn rate_limit_switch_prompt_skips_non_codex_limit() {
 }
 
 #[tokio::test]
+async fn custom_provider_ignores_local_account_rate_limit_notices() {
+    let (mut chat, mut rx, _) = make_chatwidget_manual(Some("gpt-5")).await;
+    chat.has_chatgpt_account = true;
+    chat.config.model_provider.requires_openai_auth = false;
+
+    chat.on_rate_limit_snapshot(Some(snapshot(/*percent*/ 95.0)));
+
+    assert!(drain_insert_history(&mut rx).is_empty());
+    assert_eq!(chat.rate_limit_warnings.primary_index, 0);
+    assert!(matches!(
+        chat.rate_limit_switch_prompt,
+        RateLimitSwitchPromptState::Idle
+    ));
+}
+
+#[tokio::test]
+async fn custom_provider_warns_from_turn_rate_limits_without_model_nudge() {
+    let (mut chat, mut rx, _) = make_chatwidget_manual(Some("gpt-5")).await;
+    chat.has_chatgpt_account = true;
+    chat.config.model_provider.requires_openai_auth = false;
+
+    chat.on_rolling_rate_limit_snapshot(snapshot(/*percent*/ 95.0));
+
+    let history = drain_insert_history(&mut rx);
+    assert_eq!(history.len(), 1);
+    assert!(lines_to_single_string(&history[0]).contains("less than 5% of your usage limit left"));
+    assert!(chat.rate_limit_warnings.primary_index > 0);
+    assert!(matches!(
+        chat.rate_limit_switch_prompt,
+        RateLimitSwitchPromptState::Idle
+    ));
+}
+
+#[tokio::test]
 async fn rate_limit_usage_warnings_follow_workspace_credit_flags() {
     for (credits, should_warn) in [
         (
