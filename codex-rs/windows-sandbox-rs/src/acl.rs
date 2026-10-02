@@ -836,15 +836,17 @@ enum DenyAceKind {
 
 impl DenyAceKind {
     fn mask(self) -> u32 {
+        // File-specific rights already include the generic mapping. Keeping
+        // generic bits makes Windows split inheritable denies into effective
+        // and inherit-only ACEs, needlessly consuming the bounded ACL space.
         match self {
-            Self::Read => FILE_GENERIC_READ | GENERIC_READ_MASK,
+            Self::Read => FILE_GENERIC_READ,
             Self::Write => {
                 FILE_GENERIC_WRITE
                     | FILE_WRITE_DATA
                     | FILE_APPEND_DATA
                     | FILE_WRITE_EA
                     | FILE_WRITE_ATTRIBUTES
-                    | GENERIC_WRITE_MASK
                     | DELETE
                     | FILE_DELETE_CHILD
             }
