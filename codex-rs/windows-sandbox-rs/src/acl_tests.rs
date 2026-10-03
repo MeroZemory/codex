@@ -66,9 +66,10 @@ fn existing_deny_ace_is_visible_without_write_dac() {
     let path = target.path();
     let psid = sid.as_ptr();
     assert!(unsafe { super::add_deny_read_ace(path, psid) }.expect("add deny ACE"));
-    let already_present =
-        unsafe { deny_ace_already_present(target.as_file(), path, psid, super::DenyAceKind::Read) }
-            .expect("read existing deny ACE");
+    let already_present = unsafe {
+        deny_ace_already_present(target.as_file(), path, &[psid], super::DenyAceKind::Read)
+    }
+    .expect("read existing deny ACE");
     assert!(already_present);
 }
 
@@ -460,4 +461,136 @@ fn specific_denies_preserve_access_and_do_not_split_or_grow() {
                 .all(|(after, before)| after.1.len() == before.1.len() + 36)
         );
     }
+}
+
+fn ace_snapshot(path: &Path) -> Vec<Vec<u8>> {
+    unsafe {
+        let (acl, descriptor) = fetch_dacl_handle(path).unwrap();
+        let mut entries = Vec::new();
+        for index in 0..u32::from((*acl).AceCount) {
+            let mut ace = std::ptr::null_mut();
+            assert_ne!(super::GetAce(acl, index, &mut ace), 0);
+            let header = &*ace.cast::<super::ACE_HEADER>();
+            entries.push(
+                std::slice::from_raw_parts(ace.cast::<u8>(), usize::from(header.AceSize)).to_vec(),
+            );
+        }
+        LocalFree(descriptor as HLOCAL);
+        entries
+    }
+}
+
+#[test]
+fn batch_write_denies_preserve_existing_aces_and_are_idempotent() {
+    let parent = tempfile::tempdir().unwrap();
+    let root = parent.path().join("protected");
+    let existing = LocalSid::from_string("S-1-5-21-915763429-1123581321-271828182-4250").unwrap();
+    let first = LocalSid::from_string("S-1-5-21-915763429-1123581321-271828182-4251").unwrap();
+    let second = LocalSid::from_string("S-1-5-21-915763429-1123581321-271828182-4252").unwrap();
+    let duplicate = LocalSid::from_string("S-1-5-21-915763429-1123581321-271828182-4251").unwrap();
+    let marker = LocalSid::from_string("S-1-5-21-915763429-1123581321-271828182-4253").unwrap();
+    unsafe {
+        super::ensure_allow_mask_aces(parent.path(), &[marker.as_ptr()], super::FILE_GENERIC_READ)
+            .unwrap();
+    }
+    std::fs::create_dir(&root).unwrap();
+    std::fs::create_dir(root.join("existing")).unwrap();
+    std::fs::write(root.join("existing/file"), b"test").unwrap();
+    let sids = [
+        existing.as_ptr(),
+        first.as_ptr(),
+        second.as_ptr(),
+        duplicate.as_ptr(),
+    ];
+    unsafe {
+        super::ensure_allow_mask_aces(&root, &sids[..3], super::FILE_ALL_ACCESS).unwrap();
+        assert!(super::add_deny_write_ace(&root, existing.as_ptr()).unwrap());
+        assert!(super::add_deny_read_ace(&root, marker.as_ptr()).unwrap());
+    }
+    assert!(restricted_access_allowed(
+        &root,
+        first.as_ptr(),
+        super::FILE_WRITE_DATA
+    ));
+    assert!(restricted_access_allowed(
+        &root,
+        second.as_ptr(),
+        super::FILE_WRITE_DATA
+    ));
+    let before = ace_snapshot(&root);
+    let control = acl_snapshot(&root).0;
+    assert!(unsafe { super::add_deny_write_aces(&root, &sids) }.unwrap());
+    let after = ace_snapshot(&root);
+    assert_eq!(
+        acl_snapshot(&root).0,
+        control,
+        "preserve inheritance control"
+    );
+    assert_eq!(after.len(), before.len() + 2, "only the two missing SIDs");
+    for ace in &before {
+        assert_eq!(
+            after.iter().filter(|entry| *entry == ace).count(),
+            before.iter().filter(|entry| *entry == ace).count(),
+            "preserve every existing explicit and inherited ACE"
+        );
+    }
+    std::fs::create_dir(root.join("later")).unwrap();
+    std::fs::write(root.join("later/file"), b"test").unwrap();
+    let paths = ["", "existing", "existing/file", "later", "later/file"];
+    for relative in paths {
+        let path = root.join(relative);
+        let flags = if relative.is_empty() {
+            3
+        } else if path.is_dir() {
+            0x13
+        } else {
+            0x10
+        };
+        for &sid in &sids[..3] {
+            assert_single_deny(&path, sid, super::DenyAceKind::Write.mask(), flags);
+            assert!(!restricted_access_allowed(
+                &path,
+                sid,
+                super::FILE_WRITE_DATA
+            ));
+        }
+    }
+    // The READ_CONTROL-only fallback must recognize the entire batch, not just one SID.
+    let read_handle = OpenOptions::new()
+        .access_mode(READ_CONTROL)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(&root)
+        .unwrap();
+    assert!(unsafe {
+        deny_ace_already_present(&read_handle, &root, &sids, super::DenyAceKind::Write).unwrap()
+    });
+    assert!(!unsafe {
+        deny_ace_already_present(
+            &read_handle,
+            &root,
+            &[existing.as_ptr(), marker.as_ptr()],
+            super::DenyAceKind::Write,
+        )
+        .unwrap()
+    });
+    let stable: Vec<_> = paths.iter().map(|p| acl_snapshot(&root.join(p))).collect();
+    for _ in 0..3 {
+        assert!(!unsafe { super::add_deny_write_aces(&root, &sids) }.unwrap());
+        assert!(!unsafe { super::add_deny_write_ace(&root, first.as_ptr()) }.unwrap());
+    }
+    assert_eq!(
+        paths
+            .iter()
+            .map(|p| acl_snapshot(&root.join(p)))
+            .collect::<Vec<_>>(),
+        stable
+    );
+}
+
+#[test]
+fn empty_write_deny_batch_does_not_open_the_path() {
+    let parent = tempfile::tempdir().unwrap();
+    let missing = parent.path().join("absent");
+    assert!(!unsafe { super::add_deny_write_aces(&missing, &[]) }.unwrap());
+    assert!(!missing.exists());
 }

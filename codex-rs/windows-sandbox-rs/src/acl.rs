@@ -42,6 +42,7 @@ use windows_sys::Win32::Security::GetAclInformation;
 use windows_sys::Win32::Security::IsValidAcl;
 use windows_sys::Win32::Security::MapGenericMask;
 use windows_sys::Win32::Security::OWNER_SECURITY_INFORMATION;
+use windows_sys::Win32::Security::PSID;
 use windows_sys::Win32::Storage::FileSystem::CreateFileW;
 use windows_sys::Win32::Storage::FileSystem::DELETE;
 use windows_sys::Win32::Storage::FileSystem::FILE_ALL_ACCESS;
@@ -825,7 +826,17 @@ pub unsafe fn add_allow_ace(path: &Path, psid: *mut c_void) -> Result<bool> {
 /// # Safety
 /// Caller must ensure `psid` points to a valid SID and `path` refers to an existing file or directory.
 pub unsafe fn add_deny_write_ace(path: &Path, psid: *mut c_void) -> Result<bool> {
-    add_deny_ace(path, psid, DenyAceKind::Write)
+    add_deny_write_aces(path, &[psid])
+}
+
+/// Adds missing inheritable write-deny ACEs with a single DACL update.
+/// Returns false without propagating inheritance when all denies are already present.
+///
+/// # Safety
+/// Caller must ensure every SID pointer is valid for the duration of this call and
+/// `path` refers to an existing file or directory (unless `psids` is empty).
+pub unsafe fn add_deny_write_aces(path: &Path, psids: &[PSID]) -> Result<bool> {
+    add_deny_aces(path, psids, DenyAceKind::Write)
 }
 
 #[derive(Clone, Copy)]
@@ -864,7 +875,7 @@ impl DenyAceKind {
 unsafe fn deny_ace_already_present(
     handle: &std::fs::File,
     path: &Path,
-    psid: *mut c_void,
+    psids: &[PSID],
     kind: DenyAceKind,
 ) -> Result<bool> {
     let (mut p_dacl, mut p_sd) = (std::ptr::null_mut(), std::ptr::null_mut());
@@ -878,8 +889,8 @@ unsafe fn deny_ace_already_present(
         std::ptr::null_mut(),
         &mut p_sd,
     );
-    let result =
-        acl_api_result(path, "GetSecurityInfo", code).map(|()| kind.already_present(p_dacl, psid));
+    let result = acl_api_result(path, "GetSecurityInfo", code)
+        .map(|()| psids.iter().all(|&psid| kind.already_present(p_dacl, psid)));
     if !p_sd.is_null() {
         LocalFree(p_sd as HLOCAL);
     }
@@ -887,6 +898,13 @@ unsafe fn deny_ace_already_present(
 }
 
 unsafe fn add_deny_ace(path: &Path, psid: *mut c_void, kind: DenyAceKind) -> Result<bool> {
+    add_deny_aces(path, &[psid], kind)
+}
+
+unsafe fn add_deny_aces(path: &Path, psids: &[PSID], kind: DenyAceKind) -> Result<bool> {
+    if psids.is_empty() {
+        return Ok(false);
+    }
     let handle = match OpenOptions::new()
         .access_mode(READ_CONTROL | WRITE_DAC)
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
@@ -902,7 +920,7 @@ unsafe fn add_deny_ace(path: &Path, psid: *mut c_void, kind: DenyAceKind) -> Res
             if matches!(kind, DenyAceKind::Read) {
                 ensure_handle_is_not_filesystem_root(&read_handle, path)?;
             }
-            if deny_ace_already_present(&read_handle, path, psid, kind)? {
+            if deny_ace_already_present(&read_handle, path, psids, kind)? {
                 return Ok(false);
             }
             return Err(write_error).context("open deny ACL target for update");
@@ -932,9 +950,15 @@ unsafe fn add_deny_ace(path: &Path, psid: *mut c_void, kind: DenyAceKind) -> Res
             path.display()
         ));
     }
-    let result = if kind.already_present(p_dacl, psid) {
-        Ok(false)
-    } else {
+    let mut entries: Vec<EXPLICIT_ACCESS_W> = Vec::new();
+    for &psid in psids {
+        if kind.already_present(p_dacl, psid)
+            || entries
+                .iter()
+                .any(|entry| EqualSid(entry.Trustee.ptstrName.cast(), psid) != 0)
+        {
+            continue;
+        }
         let trustee = TRUSTEE_W {
             pMultipleTrustee: std::ptr::null_mut(),
             MultipleTrusteeOperation: 0,
@@ -947,8 +971,18 @@ unsafe fn add_deny_ace(path: &Path, psid: *mut c_void, kind: DenyAceKind) -> Res
         explicit.grfAccessMode = DENY_ACCESS;
         explicit.grfInheritance = CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE;
         explicit.Trustee = trustee;
+        entries.push(explicit);
+    }
+    let result = if entries.is_empty() {
+        Ok(false)
+    } else {
         let mut p_new_dacl: *mut ACL = std::ptr::null_mut();
-        let code2 = SetEntriesInAclW(1, &explicit, p_dacl, &mut p_new_dacl);
+        let code2 = SetEntriesInAclW(
+            entries.len() as u32,
+            entries.as_ptr(),
+            p_dacl,
+            &mut p_new_dacl,
+        );
         let result = if let Err(err) = acl_api_result(path, "SetEntriesInAclW", code2) {
             Err(err)
         } else {
