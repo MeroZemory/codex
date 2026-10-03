@@ -13,8 +13,8 @@ use crate::SetupErrorCode;
 use crate::SetupErrorReport;
 use crate::SetupFailure;
 use crate::SetupRuntime;
+use crate::acl::add_deny_write_aces;
 use crate::acquire_sandbox_setup_lock;
-use crate::add_deny_write_ace;
 use crate::convert_string_sid_to_sid;
 use crate::ensure_allow_mask_aces_with_inheritance;
 use crate::ensure_allow_write_aces;
@@ -1113,30 +1113,36 @@ fn run_setup_full(payload: &Payload, log: &mut dyn Write, sbx_dir: &Path) -> Res
             &payload.write_roots,
             path,
         )?;
+        let mut deny_psids = Vec::with_capacity(deny_sid_strs.len());
         for deny_sid_str in deny_sid_strs {
-            let deny_psid = unsafe {
-                convert_string_sid_to_sid(&deny_sid_str)
-                    .ok_or_else(|| anyhow::anyhow!("convert deny capability SID failed"))?
+            let Some(deny_psid) = (unsafe { convert_string_sid_to_sid(&deny_sid_str) }) else {
+                for psid in deny_psids {
+                    unsafe { LocalFree(psid as HLOCAL) };
+                }
+                return Err(anyhow::anyhow!("convert deny capability SID failed"));
             };
+            deny_psids.push(deny_psid);
+        }
 
-            match unsafe { add_deny_write_ace(path, deny_psid) } {
-                Ok(true) => {
-                    log_line(
-                        log,
-                        &format!("applied deny ACE to protect {}", path.display()),
-                    )?;
-                }
-                Ok(false) => {}
-                Err(err) => {
-                    refresh_errors.push(format!("deny ACE failed on {}: {err}", path.display()));
-                    log_line(
-                        log,
-                        &format!("deny ACE failed on {}: {err}", path.display()),
-                    )?;
-                }
+        let result = unsafe { add_deny_write_aces(path, &deny_psids) };
+        // Free every converted SID before logging or propagating an ACL error.
+        for psid in deny_psids {
+            unsafe { LocalFree(psid as HLOCAL) };
+        }
+        match result {
+            Ok(true) => {
+                log_line(
+                    log,
+                    &format!("applied deny ACE to protect {}", path.display()),
+                )?;
             }
-            unsafe {
-                LocalFree(deny_psid as HLOCAL);
+            Ok(false) => {}
+            Err(err) => {
+                refresh_errors.push(format!("deny ACE failed on {}: {err}", path.display()));
+                log_line(
+                    log,
+                    &format!("deny ACE failed on {}: {err}", path.display()),
+                )?;
             }
         }
     }
